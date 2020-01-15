@@ -182,6 +182,10 @@ reflection.class.name : "ActiveRecord::Reflection::HasManyReflection"
 
 ---
 
+## らくちん！！！！
+
+---
+
 #### 実装の経緯
 - - -
 
