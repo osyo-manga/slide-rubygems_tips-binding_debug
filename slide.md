@@ -1,7 +1,8 @@
 ### あなたの知ってるRubyGemsTips
 - - -
 
-#### printf デバッグが捗る gem をつくった話
+## printf デバッグが捗る
+## gem をつくった話
 
 ---
 
@@ -12,16 +13,16 @@
 * Twitter : [@pink_bangbi](https://twitter.com/pink_bangbi)
 * github  : [osyo-manga](https://github.com/osyo-manga)
 * ブログ  : [Secret Garden(Instrumental)](http://secret-garden.hatenablog.com)
+  * [ピュア Ruby で Ruby 2.7 の Numbered parameter を実装してみよう！ - Secret Garden(Instrumental)](http://secret-garden.hatenablog.com/entry/2019/12/01/154607)   <!-- .element: class="fragment" -->
 * Rails 歴 2年弱                                       <!-- .element: class="fragment" -->
 * 趣味で Ruby にパッチを投げたりしてます                              <!-- .element: class="fragment" -->
   * Ruby 2.7 に [Time#floor](https://bugs.ruby-lang.org/issues/15653) / [Time#ceil](https://bugs.ruby-lang.org/issues/15772) を追加したり
-* エディタは Vim                             <!-- .element: class="fragment" -->
-  * <del>わしの vimrc は5000行あるぞ</del>
 
 
 ---
 
 ## 今日話すこと
+- - -
 ## printf デバッグが捗る
 ## gem をつくった話
 
@@ -30,38 +31,33 @@
 #### printf デバッグ
 - - -
 
-* 変数の内容などを標準出力して値を確認するデバッグ
+* 変数を標準出力して値を確認するデバッグ
+
+```ruby
+class Blog < ActiveRecord::Base
+  has_many :articles    # ←これの実装を調べる
+end
+```
 
 ```ruby
 # ActiveRecord::Reflection#add_reflection
-# .has_many とかの内部で呼ばれる
 def add_reflection(ar, name, reflection)
   ar.clear_reflections_cache
   name = -name.to_s
   ar._reflections = ar._reflections.except(name).merge!(name => reflection)
 end
 ```
+<!-- .element: class="fragment" -->
 
 >>>
 
 ```ruby
 def add_reflection(ar, name, reflection)
-  # 各値を出力する
   p __method__
   p ar
   p name
   p reflection.class.name
-  ar.clear_reflections_cache
-  name = -name.to_s
-  ar._reflections = ar._reflections.except(name).merge!(name => reflection)
-end
-```
-
->>>
-
-```ruby
-class Blog < ActiveRecord::Base
-  has_many :articles
+  # ...省略...
 end
 ```
 
@@ -73,7 +69,9 @@ Blog(id: integer)
 ```
 <!-- .element: class="fragment" -->
 
-### 何に対する出力なのかわかりづらい!!!!!                  <!-- .element: class="fragment" -->
+---
+
+### 何に対する出力なのかわかりづらい!!!!!
 
 ---
 
@@ -82,23 +80,11 @@ Blog(id: integer)
 
 ```ruby
 def add_reflection(ar, name, reflection)
-  # 各値を出力する
   p "__method__ : #{__method__}"
   p "ar : #{ar}"
   p "name : #{name}"
   p "reflection.class.name : #{reflection.class.name}"
-  ar.clear_reflections_cache
-  name = -name.to_s
-  ar._reflections = ar._reflections.except(name).merge!(name => reflection)
-end
-```
-
->>>
-
-
-```ruby
-class Blog < ActiveRecord::Base
-  has_many :articles
+  # ...省略...
 end
 ```
 
@@ -110,7 +96,9 @@ end
 ```
 <!-- .element: class="fragment" -->
 
-### わかりやすいけどめんどくさい！                  <!-- .element: class="fragment" -->
+---
+
+### わかりやすいけどめんどくさい!!!!
 
 ---
 
@@ -123,6 +111,12 @@ end
 
 #### [binding-debug](https://github.com/osyo-manga/gem-binding-debug)
 - - -
+
+* github : https://github.com/osyo-manga/gem-binding-debug
+* rubygems : https://rubygems.org/gems/binding-debug
+* install : $ gem install binding-debug
+
+>>>
 
 ```ruby
 require "binding/debug"
@@ -142,48 +136,39 @@ p { value }     # value : 42
 <span class="code-presenting-annotation fragment current-only" data-code-focus="8"></span>
 <span class="code-presenting-annotation fragment current-only" data-code-focus="11"></span>
 
-
 >>>
 
 ```ruby
-value = 114
+value = 42
 # ブロックの中に式もかける
-pp { value + value } # value + value : 228
-pp { value.chr }     # value.chr : r
+p { value + value }    # => value + value : 84
+p { value.to_s.size }  # => value.to_s.size : 2
+```
+
+```ruby
 # ブロックの中に複数の式もかける
 pp {
   value + value
   value + 3
   value * value
 }
-# value + value : 228
-# value + 3 : 117
-# value * value : 12996
+# => value + value : 84
+#    value + 3 : 45
+#    value * value : 1764
 ```
+<!-- .element: class="fragment" -->
 
 >>>
 
 ```ruby
-using BindingDebug
 def add_reflection(ar, name, reflection)
-  # ブロックの中に出力したい変数やメソッドを書いていく
   p {
     __method__
     ar
     name
     reflection.class.name
   }
-  ar.clear_reflections_cache
-  name = -name.to_s
-  ar._reflections = ar._reflections.except(name).merge!(name => reflection)
-end
-```
-
->>>
-
-```ruby
-class Blog < ActiveRecord::Base
-  has_many :articles
+  # ...省略...
 end
 ```
 
@@ -195,6 +180,25 @@ reflection.class.name : "ActiveRecord::Reflection::HasManyReflection"
 ```
 <!-- .element: class="fragment" -->
 
+---
+
+#### 実装の経緯
+- - -
+
+* 元々は Binding#p に文字列を渡す実装だった    <!-- .element: class="fragment" -->
+  * 渡した文字列を binding.eval で評価する
+
+```ruby
+binding.p "value"
+binding.p %{
+  value + value
+  value + 3
+  value * value
+}
+```
+<!-- .element: class="fragment" -->
+
+* binding.p は長いので闇の力をつかって短くした     <!-- .element: class="fragment" -->
 
 ---
 
@@ -208,6 +212,7 @@ reflection.class.name : "ActiveRecord::Reflection::HasManyReflection"
 - - -
 
 * こんなことができる Ruby たのしい！！！                  <!-- .element: class="fragment" -->
+* みんなもどんどん雑に闇の力をつかって gem をつくっていこう             <!-- .element: class="fragment" -->
 
 ---
 
